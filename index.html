@@ -187,8 +187,8 @@
         <button id="cropReset">🔄 Resetar</button>
         <button id="cropCancel">❌ Cancelar</button>
         <!-- 🔄 Botões novos de rotação -->
-        <button id="rotateLeft">↩️ Girar -90°</button>
-        <button id="rotateRight">↪️ Girar +90°</button>
+        <button id="rotateLeft">↩️ Girar Esquerda</button>
+        <button id="rotateRight">↪️ Girar Direita</button>
       </div>
     </div>
   </div>
@@ -199,15 +199,15 @@
     let currentPolygonData = null;
     let cropper;
     // Rotacionar para a esquerda
-    document.getElementById("rotateLeft").onclick = function () {
-      cropper.rotate(-90);
-    };
+// Rotacionar 10° para a esquerda
+document.getElementById("rotateLeft").onclick = function () {
+  cropper.rotate(-5);
+};
 
-    // Rotacionar para a direita
-    document.getElementById("rotateRight").onclick = function () {
-      cropper.rotate(90);
-    };
-
+// Rotacionar 10° para a direita
+document.getElementById("rotateRight").onclick = function () {
+  cropper.rotate(5);
+};
     function initMap() {
       map = new google.maps.Map(document.getElementById("map"), {
         center: { lat: -7.1305, lng: -34.8828 },
