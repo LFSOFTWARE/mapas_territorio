@@ -164,6 +164,7 @@
 
       <!-- Rodapé -->
       <div class="modal-footer">
+        <button id="togglePOI">🏪 Mostrar Comércios</button>
         <button id="modalDownload" class="btn">⬇️ Baixar PNG</button>
         <button id="modalDownloadPDF" class="btn btn-primary">⬇️ Baixar PDF</button>
       </div>
@@ -189,6 +190,7 @@
         <!-- 🔄 Botões novos de rotação -->
         <button id="rotateLeft">↩️ Girar Esquerda</button>
         <button id="rotateRight">↪️ Girar Direita</button>
+
       </div>
     </div>
   </div>
@@ -198,16 +200,24 @@
     let cardCounter = 1;
     let currentPolygonData = null;
     let cropper;
-    // Rotacionar para a esquerda
-// Rotacionar 10° para a esquerda
-document.getElementById("rotateLeft").onclick = function () {
-  cropper.rotate(-5);
-};
+    let showPOI = true;
 
-// Rotacionar 10° para a direita
-document.getElementById("rotateRight").onclick = function () {
-  cropper.rotate(5);
-};
+    // Rotacionar para a esquerda
+    // Rotacionar 10° para a esquerda
+    document.getElementById("rotateLeft").onclick = function () {
+      cropper.rotate(-5);
+    };
+
+    // Rotacionar 10° para a direita
+    document.getElementById("rotateRight").onclick = function () {
+      cropper.rotate(5);
+    };
+    document.getElementById("togglePOI").onclick = function () {
+      showPOI = !showPOI;
+      this.textContent = showPOI ? "🙈 Ocultar Comércios" : "🏪 Mostrar Comércios";
+      updateModalImage(); // força regenerar preview com ou sem POI
+    };
+
     function initMap() {
       map = new google.maps.Map(document.getElementById("map"), {
         center: { lat: -7.1305, lng: -34.8828 },
@@ -449,11 +459,18 @@ document.getElementById("rotateRight").onclick = function () {
       const borderColor = borderHex.replace("#", "0x");
       const fillColor = fillHex.replace("#", "0x") + toHexAlpha(fillOpacity);
       const ts = Date.now();
+
+      const poiStyle = showPOI
+        ? "&style=feature:poi|visibility:on"
+        : "&style=feature:poi|visibility:off";
+
       return `https://maps.googleapis.com/maps/api/staticmap?size=800x600&scale=2&maptype=roadmap&` +
         `center=${centerLat},${centerLng}&zoom=${Math.round(zoom)}&` +
         `path=fillcolor:${fillColor}|color:${borderColor}|weight:2|${encodeURIComponent(coordsStr)}` +
         `&style=feature:all|element:geometry|lightness:-${outsideOpacity}` +
-        `&style=feature:poi|visibility:off` +
+
+        poiStyle +
+
         `&style=feature:road|element:labels.text.fill|color:0x000000|weight:${streetFontSize}` +
         `&style=feature:road|element:labels.text.stroke|color:0xffffff|weight:${streetFontSize}` +
         `&ts=${ts}&key=AIzaSyCVOUDCiQPRpkReC39UY1Qb2ji_l7MFZws`;
