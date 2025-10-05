@@ -23,6 +23,8 @@
       box-shadow: 0 2px 6px rgba(0, 0, 0, .3);
       font: 14px sans-serif;
       max-width: 340px;
+      overflow-y: scroll;
+      max-height: 95%;
     }
 
     .card {
@@ -103,6 +105,7 @@
     <input id="pac-input" class="controls" type="text" placeholder="Digite um endereço"
       style="width: 300px; padding:5px; margin-bottom:8px;">
     <button id="generate">Gerar Cartão</button>
+    <button id="viewCrops">📂 Ver Cartões</button>
     <div id="cards"></div>
   </div>
 
@@ -166,7 +169,7 @@
       <div class="modal-footer">
         <button id="togglePOI">🏪 Mostrar Comércios</button>
         <button id="modalDownload" class="btn">⬇️ Baixar PNG</button>
-        <button id="modalDownloadPDF" class="btn btn-primary">⬇️ Baixar PDF</button>
+        <button id="modalDownloadPDF" class="btn btn-primary">⬇️ Editar Cartão</button>
       </div>
     </div>
   </div>
@@ -194,6 +197,31 @@
       </div>
     </div>
   </div>
+  <!-- Modal para visualizar recortes -->
+  <!-- Modal Bonito para visualizar recortes -->
+  <div id="croppedListModal" class="modal">
+    <div class="cropped-modal-content">
+      <div class="cropped-header">
+        <h2>🖼️ Imagens Cortadas</h2>
+        <div class="cropped-actions">
+          <button id="a4button" class="">⬇️ Baixar Multiplo</button>
+          <button id="clearAllCrops" class="btn-clear">🧹 Limpar tudo</button>
+          <button id="closeCroppedList" class="btn-close">✖</button>
+        </div>
+      </div>
+
+      <div id="croppedListContainer" class="cropped-grid">
+        <!-- imagens são renderizadas via JS -->
+      </div>
+    </div>
+  </div>
+  <!-- Modal para visualizar imagem em tamanho real -->
+  <div id="fullImageModal" class="modal">
+    <span class="close-btn" id="closeFullImage">&times;</span>
+    <img id="fullImageView" class="full-image" src="" alt="Visualização ampliada">
+  </div>
+
+
 
   <script>
     let map, drawingManager, lastPolygon;
@@ -201,9 +229,29 @@
     let currentPolygonData = null;
     let cropper;
     let showPOI = true;
+    let croppedCards = []
 
-    // Rotacionar para a esquerda
-    // Rotacionar 10° para a esquerda
+    document.getElementById("closeFullImage").onclick = function () {
+      document.getElementById("fullImageModal").style.display = "none";
+    };
+
+    window.addEventListener("click", (e) => {
+      const modal = document.getElementById("fullImageModal");
+      if (e.target === modal) modal.style.display = "none";
+    });
+
+
+    document.getElementById("viewCrops").onclick = function () {
+      renderCroppedList();
+      document.getElementById("croppedListModal").style.display = "flex";
+    };
+
+    document.getElementById("closeCroppedList").onclick = function () {
+      document.getElementById("croppedListModal").style.display = "none";
+    };
+
+    document.getElementById("clearAllCrops").onclick = clearAllCroppedCards;
+
     document.getElementById("rotateLeft").onclick = function () {
       cropper.rotate(-5);
     };
@@ -217,6 +265,66 @@
       this.textContent = showPOI ? "🙈 Ocultar Comércios" : "🏪 Mostrar Comércios";
       updateModalImage(); // força regenerar preview com ou sem POI
     };
+
+
+    function saveCroppedCards() {
+      localStorage.setItem("croppedCards", JSON.stringify(croppedCards));
+    }
+
+    function loadCroppedCards() {
+      const saved = localStorage.getItem("croppedCards");
+      croppedCards = saved ? JSON.parse(saved) : [];
+    }
+
+    function openFullImage(src) {
+      const modal = document.getElementById("fullImageModal");
+      const img = document.getElementById("fullImageView");
+      img.src = src;
+      modal.style.display = "flex";
+    }
+
+    function deleteCroppedCard(index) {
+      croppedCards.splice(index, 1);
+      saveCroppedCards();
+      renderCroppedList();
+    }
+
+    function clearAllCroppedCards() {
+      if (!confirm("Tem certeza que deseja apagar todos os recortes?")) return;
+      croppedCards = [];
+      saveCroppedCards();
+      renderCroppedList();
+    }
+
+    function renderCroppedList() {
+      const container = document.getElementById("croppedListContainer");
+      container.innerHTML = "";
+
+      if (croppedCards.length === 0) {
+        container.innerHTML = "<p style='text-align:center;color:#777;'>Nenhuma imagem cortada ainda.</p>";
+        return;
+      }
+
+      croppedCards.forEach((img, i) => {
+        const card = document.createElement("div");
+        card.className = "cropped-card";
+
+        const image = document.createElement("img");
+        image.src = img;
+        image.onclick = () => openFullImage(img);
+
+
+        const del = document.createElement("button");
+        del.textContent = "🗑️";
+        del.className = "delete-crop-btn";
+        del.onclick = () => deleteCroppedCard(i);
+
+        card.appendChild(image);
+        card.appendChild(del);
+        container.appendChild(card);
+      });
+    }
+
 
     function initMap() {
       map = new google.maps.Map(document.getElementById("map"), {
@@ -318,6 +426,9 @@
         });
       });
     }
+
+    loadCroppedCards();
+
     function generateCard() {
       if (!lastPolygon) { alert("Desenhe um polígono primeiro!"); return; }
 
@@ -394,6 +505,9 @@
         const canvas = cropper.getCroppedCanvas({ width: 1400, height: 580 });
         const croppedBase64 = canvas.toDataURL("image/png");
 
+        croppedCards.push(croppedBase64);
+        console.log(croppedCards);
+
         // === 2) Carrega PDF base ===
         const basePdfBytes = await fetch("S12TBa.pdf").then(res => res.arrayBuffer());
         const pdfDoc = await PDFLib.PDFDocument.load(basePdfBytes);
@@ -419,14 +533,18 @@
         });
 
         // === 4) Exporta e baixa PDF final ===
-        const pdfBytes = await pdfDoc.save();
-        const blob = new Blob([pdfBytes], { type: "application/pdf" });
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.download = filename || "cartao_territorio_editado.pdf";
-        link.click();
+        // const pdfBytes = await pdfDoc.save();
+        // const blob = new Blob([pdfBytes], { type: "application/pdf" });
+        // const link = document.createElement("a");
+        // link.href = URL.createObjectURL(blob);
+        // link.download = filename || "cartao_territorio_editado.pdf";
+        // link.click();
 
         modal.style.display = "none";
+
+        alert("Cartão salvo com sucesso!");
+        saveCroppedCards();
+
       };
 
       document.getElementById("cropReset").onclick = function () {
@@ -437,6 +555,7 @@
         modal.style.display = "none";
       };
     }// helpers
+
     function centroid(ring) {
       const lat = ring.reduce((s, p) => s + p.lat, 0) / ring.length;
       const lng = ring.reduce((s, p) => s + p.lng, 0) / ring.length;
@@ -493,6 +612,60 @@
       );
       document.getElementById("modalImage").src = url;
     }
+
+
+
+    document.getElementById("a4button").onclick = async function () {
+      console.log("a")
+      if (croppedCards.length === 0) {
+        alert("Nenhum cartão recortado ainda!");
+        return;
+      }
+
+
+      // 1️⃣ Carrega o modelo base com 4 posições
+      const basePdfBytes = await fetch("S12TBa4.pdf").then(res => res.arrayBuffer());
+      const pdfDoc = await PDFLib.PDFDocument.load(basePdfBytes);
+
+      const page = pdfDoc.getPages()[0];
+      const { width, height } = page.getSize();
+
+      // 2️⃣ Coordenadas das quatro áreas (ajustadas para o S12TBa4.pdf)
+      // Medidas em pontos (1 pt ≈ 0.3528 mm)
+      const positions = [
+        { x: 45, y: height - 230 }, // topo-esquerda
+        { x: 450, y: height - 230 }, // topo-direita
+        { x: 45, y: height - 515 }, // baixo-esquerda
+        { x: 450, y: height - 515 }  // baixo-direita
+      ];
+
+      const boxWidth = 350; // ≈ 14 cm
+      const boxHeight = 160; // ≈ 5,8 cm
+
+      // 3️⃣ Insere cada imagem nas posições correspondentes
+      for (let i = 0; i < Math.min(croppedCards.length, 4); i++) {
+        const imgBase64 = croppedCards[i];
+        const imgBytes = Uint8Array.from(atob(imgBase64.split(",")[1]), c => c.charCodeAt(0));
+        const embeddedImg = await pdfDoc.embedPng(imgBytes);
+
+        const { x, y } = positions[i];
+        page.drawImage(embeddedImg, {
+          x,
+          y,
+          width: boxWidth,
+          height: boxHeight,
+        });
+      }
+
+      // 4️⃣ Gera e baixa o PDF final com as 4 imagens
+      const pdfBytes = await pdfDoc.save();
+      const blob = new Blob([pdfBytes], { type: "application/pdf" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "cartoes_territorio_4up.pdf";
+      link.click();
+    };
+
   </script>
 
   <!-- Google Maps + jsPDF + Cropper -->
