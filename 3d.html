@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Modelo 3D Interativo</title>
+
+    <!-- Importa o componente model-viewer -->
+    <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+
+    <style>
+      body {
+        margin: 0;
+        height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background: radial-gradient(circle, #202020, #000);
+      }
+
+      model-viewer {
+        width: 80vw;
+        height: 80vh;
+        border-radius: 10px;
+        box-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
+      }
+    </style>
+  </head>
+
+  <body>
+    <model-viewer
+      src="modelo.glb"
+      alt="Modelo 3D Interativo"
+      auto-rotate
+      camera-controls
+      shadow-intensity="1"
+      exposure="1.2"
+      environment-image="neutral"
+    ></model-viewer>
+  </body>
+</html>

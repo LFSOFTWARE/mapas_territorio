@@ -190,6 +190,16 @@
   margin: 0;
   font-size: 18px;
 }
+.map-text {
+  position: absolute;
+  background: rgba(255,255,255,0.7);
+  border: 1px dashed #555;
+  padding: 3px 6px;
+  border-radius: 4px;
+  cursor: move;
+  font-weight: bold;
+  user-select: none;
+}
 
 .close-btn {
   cursor: pointer;

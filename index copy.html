@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8" />
+  <title>Cartões de Território</title>
+  <style>
+    html,
+    body,
+    #map {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+    }
+
+    .panel {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: white;
+      padding: 8px;
+      border-radius: 6px;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, .3);
+      font: 14px sans-serif;
+      max-width: 340px;
+      overflow-y: scroll;
+      max-height: 95%;
+    }
+
+    .card {
+      border: 1px solid #ccc;
+      margin-top: 10px;
+      padding: 6px;
+      width: 320px;
+      font-family: sans-serif;
+    }
+
+    .card img {
+      max-width: 100%;
+      display: block;
+      margin-bottom: 6px;
+      cursor: pointer;
+    }
+
+    .zoom-control,
+    .color-control {
+      margin-top: 6px;
+    }
+
+    /* MODALS */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 9999;
+      inset: 0;
+      background: rgba(0, 0, 0, .7);
+      justify-content: center;
+      align-items: center;
+    }
+
+    .modal-content {
+      background: #fff;
+      padding: 15px;
+      border-radius: 6px;
+      max-width: 90%;
+      max-height: 90%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .modal img {
+      max-width: 100%;
+      max-height: 70vh;
+    }
+
+    .close-btn {
+      position: absolute;
+      top: 20px;
+      right: 30px;
+      color: #fff;
+      font-size: 28px;
+      cursor: pointer;
+    }
+
+    /* Cropper modal */
+    #cropperModal .modal-content {
+      max-width: 95%;
+      max-height: 95%;
+    }
+
+    #cropperPreview {
+      width: 100%;
+    }
+  </style>
+  <link rel="stylesheet" href="css.css">
+
+  <!-- Cropper.js -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" rel="stylesheet" />
+</head>
+
+<body>
+  <div id="map"></div>
+  <div class="panel">
+    <input id="pac-input" class="controls" type="text" placeholder="Digite um endereço"
+      style="width: 300px; padding:5px; margin-bottom:8px;">
+    <button id="generate">Gerar Cartão</button>
+    <button id="viewCrops">📂 Ver Cartões</button>
+    <div id="cards"></div>
+  </div>
+
+  <!-- Modal Preview -->
+  <div id="previewModal" class="modal">
+    <div class="modal-container">
+      <!-- Cabeçalho -->
+      <div class="modal-header">
+        <h2>Pré-visualização</h2>
+        <span class="close-btn">&times;</span>
+      </div>
+
+      <!-- Conteúdo -->
+      <div class="modal-body">
+        <div class="preview-wrapper">
+          <img id="modalImage" src="" />
+        </div>
+
+        <div class="controls">
+          <!-- Zoom -->
+          <div class="control">
+            <label for="modalZoom">🔍 Zoom</label>
+            <input id="modalZoom" type="range" min="15" max="20" value="18" />
+            <span id="modalZoomValue">18</span>
+          </div>
+
+          <!-- Cores -->
+          <div class="control">
+            <label for="borderColor">🎨 Cor da borda</label>
+            <input type="color" id="borderColor" value="#0000ff" />
+          </div>
+
+          <div class="control">
+            <label for="fillColor">🖌️ Cor do preenchimento</label>
+            <input type="color" id="fillColor" value="#1976d2" />
+          </div>
+
+          <!-- Opacidades -->
+          <div class="control">
+            <label for="fillOpacity">Opacidade preenchimento</label>
+            <input type="range" id="fillOpacity" min="0" max="100" value="20" />
+            <span id="fillOpacityValue">20%</span>
+          </div>
+
+          <div class="control">
+            <label for="outsideOpacity">Escurecer fora do território</label>
+            <input type="range" id="outsideOpacity" min="0" max="100" value="0" />
+            <span id="outsideOpacityValue">0%</span>
+          </div>
+
+          <!-- Fonte das ruas -->
+          <div class="control">
+            <label for="streetFontSize">Tamanho das ruas</label>
+            <input type="range" id="streetFontSize" min="0" max="5" value="1" />
+            <span id="streetFontSizeValue">1</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Rodapé -->
+      <div class="modal-footer">
+        <button id="togglePOI">🏪 Mostrar Comércios</button>
+        <button id="modalDownload" class="btn">⬇️ Baixar PNG</button>
+        <button id="modalDownloadPDF" class="btn btn-primary">⬇️ Editar Cartão</button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- Modal Cropper -->
+  <div id="cropperModal" class="modal">
+    <span class="close-btn" id="closeCropper">&times;</span>
+    <div class="modal-content">
+      <h3>Ajuste o corte do cartão (14x5,8 cm)</h3>
+      <div style="display:flex; gap:20px; align-items:center; flex-wrap:wrap; justify-content:center;">
+        <div style="max-width:600px; max-height:400px;">
+          <img id="cropperImage" src="" />
+        </div>
+      </div>
+      <br>
+      <div style="display:flex; gap:10px; justify-content:center;">
+        <button id="cropConfirm">✅ Gerar PDF</button>
+        <button id="cropReset">🔄 Resetar</button>
+        <button id="cropCancel">❌ Cancelar</button>
+        <!-- 🔄 Botões novos de rotação -->
+        <button id="rotateLeft">↩️ Girar Esquerda</button>
+        <button id="rotateRight">↪️ Girar Direita</button>
+
+      </div>
+    </div>
+  </div>
+  <!-- Modal para visualizar recortes -->
+  <!-- Modal Bonito para visualizar recortes -->
+  <div id="croppedListModal" class="modal">
+    <div class="cropped-modal-content">
+      <div class="cropped-header">
+        <h2>🖼️ Imagens Cortadas</h2>
+        <div class="cropped-actions">
+          <button id="a4button" class="">⬇️ Baixar Multiplo</button>
+          <button id="clearAllCrops" class="btn-clear">🧹 Limpar tudo</button>
+          <button id="closeCroppedList" class="btn-close">✖</button>
+        </div>
+      </div>
+
+      <div id="croppedListContainer" class="cropped-grid">
+        <!-- imagens são renderizadas via JS -->
+      </div>
+    </div>
+  </div>
+  <!-- Modal para visualizar imagem em tamanho real -->
+  <div id="fullImageModal" class="modal">
+    <span class="close-btn" id="closeFullImage">&times;</span>
+    <img id="fullImageView" class="full-image" src="" alt="Visualização ampliada">
+  </div>
+
+
+
+  <script>
+    let map, drawingManager, lastPolygon;
+    let cardCounter = 1;
+    let currentPolygonData = null;
+    let cropper;
+    let showPOI = true;
+    let croppedCards = []
+
+    document.getElementById("closeFullImage").onclick = function () {
+      document.getElementById("fullImageModal").style.display = "none";
+    };
+
+    window.addEventListener("click", (e) => {
+      const modal = document.getElementById("fullImageModal");
+      if (e.target === modal) modal.style.display = "none";
+    });
+
+
+    document.getElementById("viewCrops").onclick = function () {
+      renderCroppedList();
+      document.getElementById("croppedListModal").style.display = "flex";
+    };
+
+    document.getElementById("closeCroppedList").onclick = function () {
+      document.getElementById("croppedListModal").style.display = "none";
+    };
+
+    document.getElementById("clearAllCrops").onclick = clearAllCroppedCards;
+
+    document.getElementById("rotateLeft").onclick = function () {
+      cropper.rotate(-5);
+    };
+
+    // Rotacionar 10° para a direita
+    document.getElementById("rotateRight").onclick = function () {
+      cropper.rotate(5);
+    };
+    document.getElementById("togglePOI").onclick = function () {
+      showPOI = !showPOI;
+      this.textContent = showPOI ? "🙈 Ocultar Comércios" : "🏪 Mostrar Comércios";
+      updateModalImage(); // força regenerar preview com ou sem POI
+    };
+
+
+    function saveCroppedCards() {
+      localStorage.setItem("croppedCards", JSON.stringify(croppedCards));
+    }
+
+    function loadCroppedCards() {
+      const saved = localStorage.getItem("croppedCards");
+      croppedCards = saved ? JSON.parse(saved) : [];
+    }
+
+    function openFullImage(src) {
+      const modal = document.getElementById("fullImageModal");
+      const img = document.getElementById("fullImageView");
+      img.src = src;
+      modal.style.display = "flex";
+    }
+
+    function deleteCroppedCard(index) {
+      croppedCards.splice(index, 1);
+      saveCroppedCards();
+      renderCroppedList();
+    }
+
+    function clearAllCroppedCards() {
+      if (!confirm("Tem certeza que deseja apagar todos os recortes?")) return;
+      croppedCards = [];
+      saveCroppedCards();
+      renderCroppedList();
+    }
+
+    function renderCroppedList() {
+      const container = document.getElementById("croppedListContainer");
+      container.innerHTML = "";
+
+      if (croppedCards.length === 0) {
+        container.innerHTML = "<p style='text-align:center;color:#777;'>Nenhuma imagem cortada ainda.</p>";
+        return;
+      }
+
+      croppedCards.forEach((img, i) => {
+        const card = document.createElement("div");
+        card.className = "cropped-card";
+
+        const image = document.createElement("img");
+        image.src = img;
+        image.onclick = () => openFullImage(img);
+
+
+        const del = document.createElement("button");
+        del.textContent = "🗑️";
+        del.className = "delete-crop-btn";
+        del.onclick = () => deleteCroppedCard(i);
+
+        card.appendChild(image);
+        card.appendChild(del);
+        container.appendChild(card);
+      });
+    }
+
+
+    function initMap() {
+      map = new google.maps.Map(document.getElementById("map"), {
+        center: { lat: -7.1305, lng: -34.8828 },
+        zoom: 16,
+        mapTypeId: "roadmap",
+      });
+
+      // 🔎 Input de busca
+      const input = document.getElementById("pac-input");
+      const autocomplete = new google.maps.places.Autocomplete(input);
+      autocomplete.bindTo("bounds", map);
+
+      const marker = new google.maps.Marker({ map: map });
+
+      autocomplete.addListener("place_changed", () => {
+        const place = autocomplete.getPlace();
+        if (!place.geometry || !place.geometry.location) {
+          alert("Endereço não encontrado: '" + place.name + "'");
+          return;
+        }
+
+        // Centraliza no endereço
+        if (place.geometry.viewport) {
+          map.fitBounds(place.geometry.viewport);
+        } else {
+          map.setCenter(place.geometry.location);
+          map.setZoom(18);
+        }
+
+        // Marca o ponto
+        marker.setPosition(place.geometry.location);
+        marker.setVisible(true);
+      });
+
+      // ✏️ Manager para desenhar polígonos
+      drawingManager = new google.maps.drawing.DrawingManager({
+        drawingMode: google.maps.drawing.OverlayType.POLYGON,
+        drawingControl: true,
+        drawingControlOptions: {
+          position: google.maps.ControlPosition.TOP_CENTER,
+          drawingModes: ["polygon"],
+        },
+        polygonOptions: {
+          fillColor: "#1976d2",
+          fillOpacity: 0.2,
+          strokeWeight: 2,
+          strokeColor: "#1976d2",
+          editable: true,
+        },
+      });
+      drawingManager.setMap(map);
+
+      google.maps.event.addListener(drawingManager, "overlaycomplete", (event) => {
+        if (event.type === google.maps.drawing.OverlayType.POLYGON) {
+          if (lastPolygon) lastPolygon.setMap(null);
+          lastPolygon = event.overlay;
+        }
+      });
+
+      // 📋 Botão gerar cartão
+      document.getElementById("generate").addEventListener("click", generateCard);
+
+      // ❌ Fechar modais
+      document.querySelector(".close-btn").onclick = () =>
+        document.getElementById("previewModal").style.display = "none";
+
+      window.onclick = (e) => {
+        if (e.target == document.getElementById("previewModal"))
+          document.getElementById("previewModal").style.display = "none";
+        if (e.target == document.getElementById("cropperModal"))
+          document.getElementById("cropperModal").style.display = "none";
+      };
+
+      // 🎛️ Controles do modal
+      [
+        "modalZoom",
+        "borderColor",
+        "fillColor",
+        "fillOpacity",
+        "outsideOpacity",
+        "streetFontSize",
+      ].forEach((id) => {
+        document.getElementById(id).addEventListener("input", () => {
+          if (id === "fillOpacity")
+            document.getElementById("fillOpacityValue").innerText =
+              document.getElementById("fillOpacity").value + "%";
+          if (id === "outsideOpacity")
+            document.getElementById("outsideOpacityValue").innerText =
+              document.getElementById("outsideOpacity").value + "%";
+          if (id === "modalZoom")
+            document.getElementById("modalZoomValue").innerText =
+              document.getElementById("modalZoom").value;
+          if (id === "streetFontSize")
+            document.getElementById("streetFontSizeValue").innerText =
+              document.getElementById("streetFontSize").value;
+
+          updateModalImage();
+        });
+      });
+    }
+
+    loadCroppedCards();
+
+    function generateCard() {
+      if (!lastPolygon) { alert("Desenhe um polígono primeiro!"); return; }
+
+      const pathCoords = lastPolygon.getPath().getArray().map(c => ({ lat: c.lat(), lng: c.lng() }));
+      const coordsStr = toLatLngPipe(pathCoords);
+
+      const center = centroid(pathCoords);
+      const cardsDiv = document.getElementById("cards");
+      const cardId = "card" + cardCounter++;
+      const card = document.createElement("div");
+      card.className = "card";
+      card.id = cardId;
+
+      const previewUrl = buildStaticMapUrl(center.lat, center.lng, coordsStr, 18, "#0000ff", "#1976d2", 20, 0, 1);
+
+      card.innerHTML = `
+    <img id="${cardId}-img" src="${previewUrl}" />
+    <b>Quadra:</b> Território ${cardCounter - 1}<br/>
+    <button class="delete-btn">🗑️ Apagar</button>
+  `;
+
+      cardsDiv.appendChild(card);
+
+      // Clique na imagem → abrir pré-visualização
+      document.getElementById(`${cardId}-img`).onclick = () => {
+        currentPolygonData = { centerLat: center.lat, centerLng: center.lng, coordsStr, rawRing: pathCoords };
+        document.getElementById("modalZoom").value = 18; document.getElementById("modalZoomValue").innerText = 18;
+        document.getElementById("borderColor").value = "#0000ff";
+        document.getElementById("fillColor").value = "#1976d2";
+        document.getElementById("fillOpacity").value = 20; document.getElementById("fillOpacityValue").innerText = "20%";
+        document.getElementById("outsideOpacity").value = 0; document.getElementById("outsideOpacityValue").innerText = "0%";
+        document.getElementById("streetFontSize").value = 1; document.getElementById("streetFontSizeValue").innerText = "1";
+        document.getElementById("modalImage").src = previewUrl;
+        document.getElementById("previewModal").style.display = "flex";
+
+        document.getElementById("modalDownload").onclick = () =>
+          downloadImage(document.getElementById("modalImage").src, `quadra-${cardId}.png`);
+        document.getElementById("modalDownloadPDF").onclick = () =>
+          openCropper(document.getElementById("modalImage").src, `quadra-${cardId}.pdf`);
+      };
+
+      // Clique no botão "Apagar" → remover card
+      card.querySelector(".delete-btn").onclick = () => {
+        cardsDiv.removeChild(card);
+      };
+    }
+
+    function downloadImage(url, filename) {
+      fetch(url).then(res => res.blob()).then(blob => {
+        const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+        a.download = filename; a.click();
+      });
+    }
+    // === Cropper integration ===
+    async function openCropper(base64img, filename) {
+      const modal = document.getElementById("cropperModal");
+      const img = document.getElementById("cropperImage");
+      img.src = base64img;
+      modal.style.display = "flex";
+
+      if (cropper) cropper.destroy();
+      cropper = new Cropper(img, {
+        aspectRatio: 14 / 5.8,
+        viewMode: 2,
+        autoCropArea: 1,
+        background: false,
+        preview: "#cropperPreview",
+        movable: true,
+        zoomable: true,
+      });
+
+      document.getElementById("cropConfirm").onclick = async function () {
+        // === 1) Exporta recorte da imagem como PNG base64 ===
+        const canvas = cropper.getCroppedCanvas({ width: 1400, height: 580 });
+        const croppedBase64 = canvas.toDataURL("image/png");
+
+        croppedCards.push(croppedBase64);
+        console.log(croppedCards);
+
+        // === 2) Carrega PDF base ===
+        const basePdfBytes = await fetch("S12TBa.pdf").then(res => res.arrayBuffer());
+        const pdfDoc = await PDFLib.PDFDocument.load(basePdfBytes);
+
+        const page = pdfDoc.getPages()[0];
+        const { width, height } = page.getSize();
+
+        // Área dentro do cartão (ajuste conforme necessário)
+        const posX = 100;
+        const posY = height - 300;
+        const boxWidth = 396;
+        const boxHeight = 164;
+
+        // === 3) Converte base64 -> Uint8Array e embeda no PDF ===
+        const imgBytes = Uint8Array.from(atob(croppedBase64.split(",")[1]), c => c.charCodeAt(0));
+        const embeddedImg = await pdfDoc.embedPng(imgBytes);
+
+        page.drawImage(embeddedImg, {
+          x: 8,
+          y: 57,
+          width: boxWidth,
+          height: boxHeight,
+        });
+
+        // === 4) Exporta e baixa PDF final ===
+        // const pdfBytes = await pdfDoc.save();
+        // const blob = new Blob([pdfBytes], { type: "application/pdf" });
+        // const link = document.createElement("a");
+        // link.href = URL.createObjectURL(blob);
+        // link.download = filename || "cartao_territorio_editado.pdf";
+        // link.click();
+
+        modal.style.display = "none";
+
+        alert("Cartão salvo com sucesso!");
+        saveCroppedCards();
+
+      };
+
+      document.getElementById("cropReset").onclick = function () {
+        cropper.reset();
+      };
+
+      document.getElementById("cropCancel").onclick = function () {
+        modal.style.display = "none";
+      };
+    }// helpers
+
+    function centroid(ring) {
+      const lat = ring.reduce((s, p) => s + p.lat, 0) / ring.length;
+      const lng = ring.reduce((s, p) => s + p.lng, 0) / ring.length;
+      return { lat, lng };
+    }
+    function toLatLngPipe(ring) {
+      const closed = closeRing(ring);
+      return closed.map(p => `${p.lat},${p.lng}`).join("|");
+    }
+    function closeRing(ring) {
+      if (ring.length < 3) return ring.slice();
+      const first = ring[0], last = ring[ring.length - 1];
+      if (first.lat === last.lat && first.lng === last.lng) return ring.slice();
+      const r = ring.slice(); r.push({ lat: first.lat, lng: first.lng }); return r;
+    }
+    function toHexAlpha(percent) {
+      const v = Math.round((percent / 100) * 255); const hex = v.toString(16).padStart(2, "0"); return hex;
+    }
+    function buildStaticMapUrl(centerLat, centerLng, coordsStr, zoom, borderHex, fillHex, fillOpacity, outsideOpacity, streetFontSize) {
+      const borderColor = borderHex.replace("#", "0x");
+      const fillColor = fillHex.replace("#", "0x") + toHexAlpha(fillOpacity);
+      const ts = Date.now();
+
+      const poiStyle = showPOI
+        ? "&style=feature:poi|visibility:on"
+        : "&style=feature:poi|visibility:off";
+
+      return `https://maps.googleapis.com/maps/api/staticmap?size=800x600&scale=2&maptype=roadmap&` +
+        `center=${centerLat},${centerLng}&zoom=${Math.round(zoom)}&` +
+        `path=fillcolor:${fillColor}|color:${borderColor}|weight:2|${encodeURIComponent(coordsStr)}` +
+        `&style=feature:all|element:geometry|lightness:-${outsideOpacity}` +
+
+        poiStyle +
+
+        `&style=feature:road|element:labels.text.fill|color:0x000000|weight:${streetFontSize}` +
+        `&style=feature:road|element:labels.text.stroke|color:0xffffff|weight:${streetFontSize}` +
+        `&ts=${ts}&key=AIzaSyCVOUDCiQPRpkReC39UY1Qb2ji_l7MFZws`;
+    }
+
+    function updateModalImage() {
+      if (!currentPolygonData) return;
+      const zoom = document.getElementById("modalZoom").value;
+      const borderColor = document.getElementById("borderColor").value;
+      const fillColor = document.getElementById("fillColor").value;
+      const fillOpacity = document.getElementById("fillOpacity").value;
+      const outsideOpacity = document.getElementById("outsideOpacity").value;
+      const streetFontSize = document.getElementById("streetFontSize").value;
+
+      const url = buildStaticMapUrl(
+        currentPolygonData.centerLat,
+        currentPolygonData.centerLng,
+        currentPolygonData.coordsStr,
+        zoom, borderColor, fillColor, fillOpacity, outsideOpacity, streetFontSize
+      );
+      document.getElementById("modalImage").src = url;
+    }
+
+
+
+    document.getElementById("a4button").onclick = async function () {
+      console.log("a")
+      if (croppedCards.length === 0) {
+        alert("Nenhum cartão recortado ainda!");
+        return;
+      }
+
+
+      // 1️⃣ Carrega o modelo base com 4 posições
+      const basePdfBytes = await fetch("S12TBa4.pdf").then(res => res.arrayBuffer());
+      const pdfDoc = await PDFLib.PDFDocument.load(basePdfBytes);
+
+      const page = pdfDoc.getPages()[0];
+      const { width, height } = page.getSize();
+
+      // 2️⃣ Coordenadas das quatro áreas (ajustadas para o S12TBa4.pdf)
+      // Medidas em pontos (1 pt ≈ 0.3528 mm)
+      const positions = [
+        { x: 45, y: height - 230 }, // topo-esquerda
+        { x: 450, y: height - 230 }, // topo-direita
+        { x: 45, y: height - 515 }, // baixo-esquerda
+        { x: 450, y: height - 515 }  // baixo-direita
+      ];
+
+      const boxWidth = 350; // ≈ 14 cm
+      const boxHeight = 160; // ≈ 5,8 cm
+
+      // 3️⃣ Insere cada imagem nas posições correspondentes
+      for (let i = 0; i < Math.min(croppedCards.length, 4); i++) {
+        const imgBase64 = croppedCards[i];
+        const imgBytes = Uint8Array.from(atob(imgBase64.split(",")[1]), c => c.charCodeAt(0));
+        const embeddedImg = await pdfDoc.embedPng(imgBytes);
+
+        const { x, y } = positions[i];
+        page.drawImage(embeddedImg, {
+          x,
+          y,
+          width: boxWidth,
+          height: boxHeight,
+        });
+      }
+
+      // 4️⃣ Gera e baixa o PDF final com as 4 imagens
+      const pdfBytes = await pdfDoc.save();
+      const blob = new Blob([pdfBytes], { type: "application/pdf" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "cartoes_territorio_4up.pdf";
+      link.click();
+    };
+
+  </script>
+
+  <!-- Google Maps + jsPDF + Cropper -->
+  <script async
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCVOUDCiQPRpkReC39UY1Qb2ji_l7MFZws&libraries=drawing&callback=initMap"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+  <script async
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCVOUDCiQPRpkReC39UY1Qb2ji_l7MFZws&libraries=drawing,places&callback=initMap">
+    </script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+
+</body>
+
+</html>
